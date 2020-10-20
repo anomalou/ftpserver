@@ -5,7 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Collections.Generic;
 
-namespace FTP_server{
+namespace FTPserver{
 
     enum DataConnectionType{
         Active,
@@ -30,7 +30,7 @@ namespace FTP_server{
         private StreamWriter dataWriter;
         private StreamReader dataReader;
 
-        private string root;
+        private string rootDirectory;
 
         public ClientHandle(TcpClient client){
             controlClient = client;
@@ -39,13 +39,15 @@ namespace FTP_server{
 
             controlWriter = new StreamWriter(controlStream);
             controlReader = new StreamReader(controlStream);
-
-            root = "C:\\";
         }
 
         public void ClientHandler(object obj){
             controlWriter.WriteLine("220 Service ready!");
             controlWriter.Flush();
+            Log.Write("220 Service ready!");
+
+            rootDirectory = "C:\\";
+            currentDirectory = rootDirectory;
 
             string line = null;
 
@@ -56,6 +58,8 @@ namespace FTP_server{
                     string[] command = line.Split(' ');
                     string cmd = command[0].ToUpperInvariant();
                     string args = command.Length > 1 ? line.Substring(command[0].Length + 1) : null;
+
+                    Log.Write(line);
 
                     if(string.IsNullOrWhiteSpace(args))
                         args = null;
@@ -82,7 +86,7 @@ namespace FTP_server{
                                 response = Type(typeArgs[0], typeArgs.Length > 1 ? typeArgs[1] : null);
                                 break;
                             case "PASV":
-                                response = Pasv();
+                                response = Passive();
                                 break;
                             case "PORT":
                                 response = Port(args);
@@ -91,7 +95,7 @@ namespace FTP_server{
                                 response = List(args);
                                 break;
                             case "RETR":
-                                response = Retr(args);
+                                response = Retrieve(args);
                                 break;
                             case "QUIT":
                                 response = "221 Service closing control connection";
@@ -108,6 +112,8 @@ namespace FTP_server{
                     }else{
                         controlWriter.WriteLine(response);
                         controlWriter.Flush();
+
+                        Log.Write(response);
 
                         if(response.StartsWith("221"))
                             break;
@@ -196,7 +202,7 @@ namespace FTP_server{
             return $"227 Entered active mode";
         }
 
-        private string Pasv(){
+        private string Passive(){
             IPAddress localAddress = ((IPEndPoint)controlClient.Client.LocalEndPoint).Address;
 
             passiveListener = new TcpListener(localAddress, 0);
@@ -243,7 +249,7 @@ namespace FTP_server{
             return "250 Changed to new directory";
         }
 
-        private string Retr(string pathname){
+        private string Retrieve(string pathname){
             pathname = NormalizeFilename(pathname);
             
             if(IsPathValid(pathname)){
@@ -268,20 +274,20 @@ namespace FTP_server{
             }
 
             if(name == "/"){
-                return root;
+                return rootDirectory;
             }else if(name.StartsWith('/')){
-                name = new FileInfo(Path.Combine(root, name.Substring(1))).FullName;
+                name = new FileInfo(Path.Combine(rootDirectory, name.Substring(1))).FullName;
             }else{
                 string[] clearName = name.Split(' ');
                 name = new FileInfo(Path.Combine(currentDirectory, clearName[clearName.Length - 1])).FullName;
             }
             
-            return IsPathValid(name) ? name : null;
+            return IsPathValid(name) ? name : string.Empty;
         }
 
         private bool IsPathValid(string path)
         {
-            return path.StartsWith(root);
+            return path.StartsWith(rootDirectory);
         }
 
         private void DoRetrieve(IAsyncResult result){

@@ -1,26 +1,31 @@
 using System.Threading;
-using System.Text;
 using System;
 using System.Net;
 using System.Net.Sockets;
-using System.IO;
 
-namespace FTP_server{
-    class FTPServer{
+namespace FTPserver{
+    class Server{
         private TcpListener listener;
 
-        public FTPServer(){}
+        public Server(){}
 
-        public void Start(){
-            listener = new TcpListener(IPAddress.Any, 21);
+        public void Start(IPAddress address){
+            listener = new TcpListener(address, 21);
             listener.Start();
             listener.BeginAcceptTcpClient(ClientHandler, listener);
+            Log.StartLog();
+        }
+
+        public void Start(){
+            Start(IPAddress.Any);
         }
 
         public void Stop(){
             if(listener != null){
                 listener.Stop();
+
             }
+            Log.StopLog();
         }
 
         private void ClientHandler(IAsyncResult result){
